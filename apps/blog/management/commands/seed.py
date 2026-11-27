@@ -1,18 +1,20 @@
+from datetime import timedelta
 from random import choice, randint, random, sample
 from time import perf_counter
 from typing import Any
 
 from django.contrib.auth.hashers import make_password
 from django.core.management.base import BaseCommand, CommandError, CommandParser
+from django.utils import timezone
 from django.utils.text import slugify
 from faker import Faker
 
 from apps.auths.models import User
 from apps.blog.models import Category, Comment, Post, Tag
 
-DEFAULT_USERS = 20
 DEFAULT_POSTS = 100
 DEFAULT_COMMENTS = 500
+DEFAULT_USERS = 20
 COUNT_OPTION_NAMES = ("users", "posts", "comments")
 
 SEED_PASSWORD = "SeedPassword123!"
@@ -36,6 +38,13 @@ FIRST_DUPLICATE_SUFFIX = 2
 MIN_COMMENT_SENTENCES = 1
 MAX_COMMENT_SENTENCES = 3
 
+
+POST_HISTORY_DAYS = 365
+POST_UPDATE_PROBABILITY = 0.30
+MIN_UPDATE_DELAY_DAYS = 1
+MAX_UPDATE_DELAY_DAYS = 30
+
+SECOND_PER_DAY = 24 * 60 * 60
 
 CATEGORY_NAMES = (
     "Python",
@@ -203,6 +212,50 @@ class Command(BaseCommand):
         Tag.objects.bulk_create(tags_to_create)
         return len(tags_to_create)
 
+    def _set_post_dates(self, posts: list[Post]) -> None:
+        """Spread post dates over the last year."""
+        now = timezone.now()
+        history_seconds = POST_HISTORY_DAYS * SECOND_PER_DAY
+
+        for post in posts:
+            age_seconds = randint(0, history_seconds)
+            post.created_at = now - timedelta(seconds=age_seconds)
+
+            # Most posts were not edited after creation.
+            post.updated_at = post.created_at
+
+            # About 30% were edited later, but never in the future.
+            if random() < POST_UPDATE_PROBABILITY:
+                delay_days = randint(
+                MIN_UPDATE_DELAY_DAYS,
+                MAX_UPDATE_DELAY_DAYS,
+            )
+                post.updated_at = min(
+                    post.created_at + timedelta(days=delay_days),
+                    now,
+            )
+
+        Post.objects.bulk_update(
+            posts,
+            fields=["created_at", "updated_at"],
+        )
+
+    def _set_comment_dates(self, comments: list[Comment]) -> None:
+        """Give each comment a date between its post's creation and now."""
+        now = timezone.now()
+
+        for comment in comments:
+            post_created_at = comment.post.created_at
+            available_seconds = int((now - post_created_at).total_seconds())
+            age_seconds = randint(0, available_seconds)
+
+            comment.created_at = now - timedelta(seconds=age_seconds)
+
+        Comment.objects.bulk_update(
+            comments,
+            fields=["created_at"],
+        )
+
     def _create_posts(self, posts_count: int, fake: Faker) -> int:
         if posts_count == 0:
             return 0
@@ -244,6 +297,7 @@ class Command(BaseCommand):
                 )
             )
         Post.objects.bulk_create(posts_to_create)
+        self._set_post_dates(posts_to_create)
 
         for post in posts_to_create:
             tags_count = randint(
@@ -282,6 +336,7 @@ class Command(BaseCommand):
                 )
             )
         Comment.objects.bulk_create(comments_to_create)
+        self._set_comment_dates(comments_to_create)
         return len(comments_to_create)
 
     def handle(self, *args: Any, **options: Any) -> None:

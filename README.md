@@ -43,6 +43,36 @@ Generated users share the development password `SeedPassword123!`.
 Repeated runs add users, posts, and comments while skipping existing
 categories and tags.
 
+
+## Queries
+
+Run all read-only ORM queries:
+
+~~~bash
+python manage.py queries
+~~~
+
+Run one query by its number, or include the SQL sent to the database:
+
+~~~bash
+python manage.py queries --number 31
+python manage.py queries --number 6 --sql
+~~~
+
+Example output:
+
+~~~text
+#31 categories_with_post_count — 1 SQL query
+  Python {'post_count': 16}
+  Databases {'post_count': 13}
+  (8 rows)
+~~~
+
+Queries #40–44 change database data, so the command skips them when run
+without `--number`. Run an individual one explicitly,
+for example `python manage.py queries --number 41`.
+Restore the seeded data afterward with `python manage.py seed --clear`.
+
 ## Admin
 
 ```bash
