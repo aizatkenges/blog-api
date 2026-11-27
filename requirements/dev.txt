@@ -1,3 +1,2 @@
 -r base.txt
 ruff
-Faker==40.44.0

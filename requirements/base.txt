@@ -1,5 +1,4 @@
-Django==6.1.1
+Django
 djangorestframework
 python-decouple
 djangorestframework-simplejwt
-django-unfold==0.108.0

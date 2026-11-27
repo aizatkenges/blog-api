@@ -1,3 +1,2 @@
 from settings.base import *
-
-DEBUG = False
+DEBUG =False
